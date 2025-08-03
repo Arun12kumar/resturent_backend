@@ -98,6 +98,7 @@ exports.getMenuItem = asyncHandler(async (req, res, next) => {
 // @route   POST /api/menu
 // @access  Private/Admin
 exports.createMenuItem = asyncHandler(async (req, res, next) => {
+  req.body.user = req.user.id;
   const menuItem = await MenuItem.create(req.body);
 
   res.status(201).json({

@@ -26,22 +26,30 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     enum: ['user', 'admin'],
-    default: 'user',
+    default: 'admin',
   },
   createdAt: {
     type: Date,
     default: Date.now,
   },
+  passwordChangedAt: Date, // ✅ Add this
 });
 
 // Encrypt password using bcrypt
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) {
-    next();
+    return next();
   }
 
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
+  
+  // ✅ Set passwordChangedAt to current time (just before saving)
+  if (!this.isNew) {
+    this.passwordChangedAt = Date.now() - 1000; // Prevent token issued at same exact millisecond
+  }
+
+  next();
 });
 
 // Sign JWT and return
@@ -54,6 +62,15 @@ userSchema.methods.getSignedJwtToken = function () {
 // Match user entered password to hashed password in database
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
+};
+
+// ✅ Compare JWT issue time with passwordChangedAt time
+userSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
+  if (this.passwordChangedAt) {
+    const changedTimestamp = parseInt(this.passwordChangedAt.getTime() / 1000, 10);
+    return JWTTimestamp < changedTimestamp;
+  }
+  return false;
 };
 
 module.exports = mongoose.model('User', userSchema);
